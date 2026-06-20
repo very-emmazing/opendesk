@@ -156,6 +156,128 @@ cert-manager starts the DNS-01 challenge).
 
 ---
 
+## Step 7 — Post-portal configuration
+
+Everything below happens **after** `https://portal.od.heinle.cc` loads in the
+browser. Nothing here requires touching Terraform.
+
+### 7.1 Retrieve the auto-generated admin password
+
+openDesk generates credentials on first deploy and stores them in a Kubernetes
+secret:
+
+```bash
+export KUBECONFIG="$(terraform output -raw kubeconfig_path)"
+
+kubectl -n opendesk get secret ums-nubus-credentials \
+  -o jsonpath='{.data.administrator_password}' | base64 -d
+```
+
+Log in with username `Administrator` and that password. **Change it immediately**
+after first login.
+
+### 7.2 Verify the wildcard certificate issued
+
+cert-manager runs the Let's Encrypt DNS-01 challenge in the background. Confirm
+it completed before trusting any service:
+
+```bash
+kubectl -n cert-manager get clusterissuer letsencrypt-dns
+# READY=True required
+
+kubectl -n opendesk get certificate
+# All certificates should show READY=True
+```
+
+If a certificate is stuck, inspect
+`kubectl -n opendesk describe certificate <name>` for the ACME challenge status.
+
+### 7.3 Create users
+
+openDesk has no self-registration. The admin must create accounts manually.
+Three options in order of effort:
+
+| Method | When to use |
+|---|---|
+| Portal UI → Administrator → Users → Create | A handful of test accounts |
+| openDesk User Importer script (UDM REST API) | Bulk import from a CSV |
+| LDAP/UCS federation via Keycloak | Existing corporate directory |
+
+For an eval, create at least one non-admin test user and confirm the end-user
+login flow works.
+
+### 7.4 Change OpenProject's default password
+
+OpenProject ships with its own local admin account (`admin` / `admin`)
+independent of the central SSO. Log in via the portal → OpenProject tile, then
+go to **Avatar → Administration** and change the password before anyone else
+reaches it.
+
+### 7.5 Configure SMTP
+
+openDesk includes Postfix, but without a smarthost it cannot deliver email
+externally. Without this, password-reset emails, OpenProject notifications, and
+calendar invites are silently queued. Edit
+`helmfile/environments/default/functional.yaml.gotmpl` in your openDesk repo:
+
+```yaml
+smtp:
+  host: "your-smarthost.example.com"
+  username: "user"
+  password: "secret"
+```
+
+Then reapply: `helmfile apply -e dev -n opendesk`.
+
+### 7.6 Configure a TURN server for video calls
+
+Element (chat) and Jitsi (video) both require a TURN/STUN server to establish
+peer-to-peer connections through NAT. Without it, video calls fail for most
+users. This is the single most common reason calls don't work on a fresh
+install. Add TURN details to your helmfile functional values:
+
+```yaml
+functional:
+  element:
+    turnServer:
+      host: "turn.your-domain.example.com"
+      port: 3478
+      secret: "your-turn-secret"
+```
+
+You can run [coturn](https://github.com/coturn/coturn) on any small VM, or use
+a hosted TURN service, then reapply helmfile.
+
+### 7.7 Verify core functionality (smoke test)
+
+```bash
+kubectl -n opendesk get pods
+# All pods should be Running or Completed — allow 5–10 min for init containers
+# (database migrations, OpenProject seeder, etc.) to finish first
+```
+
+Then run through this checklist before declaring the environment ready:
+
+- [ ] Admin login at `https://portal.od.heinle.cc`
+- [ ] Test-user login — SSO flows to each tile without a second password prompt
+- [ ] Nextcloud: file upload and download
+- [ ] Element: send a chat message
+- [ ] OpenProject: create a project and a task
+- [ ] Jitsi: start a meeting (audio/video only reliable once TURN is configured)
+- [ ] Email: trigger a password-reset for the test user and confirm delivery
+
+### 7.8 Optional / production-only steps
+
+| Topic | What |
+|---|---|
+| **External IdP** | Federate Keycloak with Azure AD / Okta via OIDC or SAML. Keycloak admin console: `https://keycloak.od.heinle.cc/admin` (user: `kcadmin`, password in the `ums-keycloak` pod env). |
+| **Matrix federation** | Set `functional.matrix.federation.enabled: true` in helmfile values to allow Element users to chat across Matrix servers. |
+| **Separate mail domain** | By default addresses are `user@od.heinle.cc`. A dedicated `mail.od.heinle.cc` subdomain can be configured for outbound mail identity. |
+| **Monitoring** | openDesk exposes Prometheus metrics. Add a Prometheus + Grafana stack separately; nothing is wired up by default. |
+| **Backups** | All state lives in hcloud-volumes PVCs. Set up snapshot schedules in the Hetzner console or deploy Velero before going beyond eval. |
+
+---
+
 ## Teardown — IMPORTANT: read before destroying
 
 **Terraform does not know about Hetzner block volumes created at runtime.**
