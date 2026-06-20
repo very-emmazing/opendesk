@@ -1,6 +1,6 @@
-output "node_ipv4" {
-  description = "Public IPv4 address of the single control-plane / ingress node. DNS records for *.od.heinle.cc and od.heinle.cc point here."
-  value       = module.kube_hetzner.ingress_public_ipv4
+output "lb_ipv4" {
+  description = "Public IPv4 address of the Hetzner Load Balancer. DNS records for *.od.heinle.cc and od.heinle.cc point here."
+  value       = hcloud_load_balancer.ingress.ipv4
 }
 
 output "kubeconfig_path" {

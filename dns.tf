@@ -1,8 +1,8 @@
 # ═════════════════════════════════════════════════════════════════════════════
 # Cloudflare DNS records for openDesk
 #
-# Both records point at the haproxy DaemonSet endpoint, which is the
-# control-plane node's public IP (no separate load balancer).
+# Both records point at the Hetzner Load Balancer's public IP (lb.tf).
+# The LB distributes HTTPS traffic to haproxy-ingress pods across agent nodes.
 #
 # proxied = false is MANDATORY for two reasons:
 #   1. Let's Encrypt DNS-01 ACME challenge: cert-manager reads TXT records
@@ -15,11 +15,10 @@
 # ═════════════════════════════════════════════════════════════════════════════
 
 locals {
-  # module.kube_hetzner.ingress_public_ipv4 falls back to the first control-
-  # plane node's IPv4 when no dedicated ingress load-balancer exists.
-  # With ingress_controller = "none" no LB is created, so this is always the
-  # node IP — exactly where our haproxy DaemonSet (hostNetwork) is listening.
-  ingress_ip = module.kube_hetzner.ingress_public_ipv4
+  # Use the Hetzner Load Balancer's public IP as the DNS target.
+  # This gives a stable address independent of individual node IPs or
+  # rescheduling events.
+  ingress_ip = hcloud_load_balancer.ingress.ipv4
 
   # Derive the subdomain label relative to the Cloudflare zone.
   # Example: base_domain="od.heinle.cc", zone="heinle.cc" → subdomain="od"
@@ -28,7 +27,7 @@ locals {
   subdomain = trimsuffix(var.base_domain, ".${var.cloudflare_zone_name}")
 }
 
-# Wildcard A record: *.od.heinle.cc → node IP
+# Wildcard A record: *.od.heinle.cc → LB IP
 # Catches all openDesk sub-services: portal.od.heinle.cc, mail.od.heinle.cc, etc.
 resource "cloudflare_record" "wildcard" {
   zone_id = var.cloudflare_zone_id
@@ -39,7 +38,7 @@ resource "cloudflare_record" "wildcard" {
   ttl     = 300
 }
 
-# Apex A record: od.heinle.cc → node IP
+# Apex A record: od.heinle.cc → LB IP
 # Required for the openDesk portal to be reachable at the bare base domain.
 resource "cloudflare_record" "apex" {
   zone_id = var.cloudflare_zone_id

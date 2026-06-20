@@ -9,9 +9,10 @@ workplace suite).
 
 | Layer | Tool |
 |---|---|
-| Hetzner node, network, firewall | `hcloud` provider |
+| Hetzner nodes, network, firewall | `hcloud` provider |
 | k3s cluster (k3s-based) | `kube-hetzner/kube-hetzner/hcloud` module v2.20.0 |
-| haproxy-ingress (DaemonSet, hostNetwork) | `helm_release` |
+| Hetzner Load Balancer (ingress) | `hcloud` provider (`hcloud_load_balancer`) |
+| haproxy-ingress (Deployment, LB Service) | `helm_release` |
 | cert-manager + ClusterIssuer `letsencrypt-dns` | `helm_release` + `kubectl_manifest` |
 | Cloudflare DNS (`*.od.heinle.cc`, `od.heinle.cc`) | `cloudflare` provider |
 
@@ -325,13 +326,26 @@ terraform destroy
 
 ### Node sizing note
 
-The single control-plane node defaults to **CCX43** (16 dedicated x86 vCPU /
-64 GB RAM). This satisfies the openDesk evaluation minimum of 12 vCPU / 32 GB.
+The cluster uses a split control-plane / worker topology:
+
+| Role | Default type | vCPU | RAM | Count |
+|---|---|---|---|---|
+| Control-plane | `cx22` | 2 | 4 GB | 1 |
+| Agent (worker) | `cx33` | 8 | 16 GB | 3 (default) |
+| **Total worker capacity** | | **24** | **48 GB** | |
+
+The openDesk evaluation minimum is 12 vCPU / 32 GB. Three `cx33` agents
+provide 24 vCPU / 48 GB — roughly 2× the minimum, giving comfortable headroom
+for all 35+ openDesk services. The control-plane node runs only k3s system
+components and does not contribute to workload capacity.
+
+Adjust `agent_count` or `agent_type` in `terraform.tfvars` if you need more
+or less capacity. The maximum per-node type is `cx33` (8 vCPU / 16 GB).
 
 **ARM instances (CAX / Ampere) are NOT supported.** openDesk ships x86-only
 container images and Python wheels. Using a CAX node will result in
-crash-looping pods. The `node_type` variable has a validation rule that
-rejects any value starting with `cax`.
+crash-looping pods. Both `control_plane_type` and `agent_type` have validation
+rules that reject any value starting with `cax`.
 
 ---
 
@@ -347,7 +361,10 @@ rejects any value starting with `cax`.
 | `ssh_public_key_path` | `~/.ssh/id_ed25519.pub` | SSH public key for node access |
 | `ssh_private_key_path` | `~/.ssh/id_ed25519` | SSH private key for cloud-init bootstrap |
 | `cluster_name` | `opendesk-eval` | Prefix for Hetzner resource names |
-| `node_type` | `ccx43` | Hetzner server type (x86 only, min 12 vCPU/32 GB) |
+| `control_plane_type` | `cx22` | Server type for the control-plane node (x86 only) |
+| `agent_type` | `cx33` | Server type for worker nodes (x86 only, max cx33) |
+| `agent_count` | `3` | Number of worker nodes |
+| `lb_type` | `lb11` | Hetzner Load Balancer type for ingress |
 | `location` | `nbg1` | Hetzner datacenter (Nuremberg) |
 | `base_domain` | `od.heinle.cc` | Base domain for openDesk |
 
@@ -355,12 +372,25 @@ rejects any value starting with `cax`.
 
 ## Architecture decisions
 
-### Why haproxy-ingress with DaemonSet + hostNetwork?
+### Why haproxy-ingress with Deployment + Hetzner Load Balancer?
 
-openDesk's own documentation recommends haproxy-ingress. The DaemonSet with
-`hostNetwork: true` binds directly to the node's NIC on ports 80/443,
-eliminating the need for a Hetzner Load Balancer (saves ~€12/month on an eval
-cluster). DNS points directly at the node IP.
+openDesk's own documentation recommends haproxy-ingress. A Deployment (2
+replicas) with `service.type=LoadBalancer` is used instead of a DaemonSet with
+`hostNetwork: true`. The Hetzner cloud controller manager (CCM) wires the
+Service to a pre-provisioned `hcloud_load_balancer` resource and manages LB
+targets and port forwarding automatically.
+
+Benefits over the single-node DaemonSet approach:
+- **Stable IP**: The LB IP exists before any node; DNS never needs updating if
+  nodes are replaced.
+- **No node firewall changes**: The LB routes via the cluster's private network
+  (`use-private-ip: "true"`); ports 80/443 do not need to be open on
+  individual nodes.
+- **High availability**: Two haproxy replicas across different worker nodes;
+  LB health-checks remove unhealthy targets automatically.
+
+The LB type `lb11` costs ~€6/month — a reasonable trade-off for the
+stability benefits on a multi-node eval cluster.
 
 ### Why `hcloud-volumes` only (no `local-path`)?
 

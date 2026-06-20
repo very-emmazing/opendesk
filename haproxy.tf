@@ -18,10 +18,14 @@
 #     headers (Set-Cookie, X-Frame-Options, CSP, CORS, etc.), so requests
 #     are rejected with 400 without this increase.
 #
-# DaemonSet + hostNetwork architecture:
-#   The pod binds directly to the node's NIC on ports 80/443, so DNS can
-#   point straight at the node's public IP. No Hetzner Load Balancer is
-#   required, which reduces cost and removes one network hop.
+# Architecture — Deployment + Hetzner Load Balancer:
+#   haproxy-ingress runs as a Deployment (2 replicas) on the agent nodes.
+#   A Service of type LoadBalancer is created; the Hetzner cloud controller
+#   manager (CCM) wires it to the pre-provisioned LB (lb.tf) and manages
+#   LB targets and port forwarding automatically. Traffic path:
+#
+#     Internet → Hetzner LB public IP → haproxy pod (via private network)
+#       → Kubernetes Service ClusterIP → application pod
 # ═════════════════════════════════════════════════════════════════════════════
 
 resource "helm_release" "haproxy_ingress" {
@@ -32,32 +36,33 @@ resource "helm_release" "haproxy_ingress" {
   namespace        = "haproxy-ingress"
   create_namespace = true
 
-  # Wait for rollout to confirm the DaemonSet is healthy before Terraform
-  # considers the release successful.
   wait    = true
   timeout = 300
 
   values = [
     <<-YAML
       controller:
-        kind: DaemonSet
-        hostNetwork: true
+        kind: Deployment
+        replicaCount: 2
 
-        # Without this toleration the DaemonSet pod cannot be scheduled on the
-        # control-plane node (which carries the node-role.kubernetes.io/control-plane
-        # taint). On a single-node cluster where there are no agent nodes, this
-        # is the only node available.
-        tolerations:
-          - operator: Exists
-
-        # Register haproxy as the cluster-wide default IngressClass. openDesk's
-        # Ingress objects do not specify an ingressClassName annotation; they rely
-        # on there being exactly one default class. If no default class is set
-        # the ingresses are silently ignored.
+        # Register haproxy as the cluster-wide default IngressClass.
+        # openDesk Ingress objects do not set an ingressClassName annotation;
+        # they rely on there being exactly one default class.
         ingressClass: haproxy
         ingressClassResource:
           enabled: true
           default: true
+
+        service:
+          type: LoadBalancer
+          annotations:
+            # Use the pre-provisioned LB from lb.tf instead of letting CCM
+            # create a new one. This gives a stable IP before any pods exist.
+            load-balancer.hetzner.cloud/id: "${hcloud_load_balancer.ingress.id}"
+            # Route LB→node traffic via the cluster private network.
+            # Prevents NodePort traffic from traversing the public NIC and
+            # avoids the need for port 80/443 rules in the node firewall.
+            load-balancer.hetzner.cloud/use-private-ip: "true"
 
         config:
           # global-config-snippet injects raw HAProxy directives into the
@@ -69,6 +74,12 @@ resource "helm_release" "haproxy_ingress" {
     YAML
   ]
 
-  # Ensure the cluster exists before attempting to install any Helm chart.
-  depends_on = [module.kube_hetzner]
+  # Cluster must exist before any Helm release can be installed.
+  # LB must be attached to the cluster network before CCM can populate
+  # LB targets — explicit dependency since no attribute of
+  # hcloud_load_balancer_network.ingress is referenced above.
+  depends_on = [
+    module.kube_hetzner,
+    hcloud_load_balancer_network.ingress,
+  ]
 }
