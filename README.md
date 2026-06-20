@@ -23,6 +23,173 @@ openDesk itself is deployed by its own Helmfile in a separate step after
 
 ---
 
+## Current status — ready for `terraform apply`
+
+The code in this repository has been:
+
+- **Written** — all `.tf` files are complete and internally consistent.
+- **Formatted** — `terraform fmt` passes with no changes.
+- **Validated** — `terraform validate` passes with zero errors and zero warnings.
+- **Plan-checked** — a targeted plan against the Hetzner module confirmed 10 resources planned correctly, including the CCX43 server, firewall with TCP 80/443 open, private network, and k3s bootstrap scaffolding.
+
+**Nothing has been applied.** No Hetzner resources exist yet, no DNS records have been written, no Kubernetes cluster is running. You are at the starting line.
+
+---
+
+## What to do next
+
+### Step 0 — Gather your credentials
+
+You need four things before running any Terraform command:
+
+| What | Where to get it |
+|---|---|
+| Hetzner Cloud API token | Console → Security → API Tokens → Create (Read & Write) |
+| Cloudflare API token | Cloudflare dashboard → My Profile → API Tokens → Create Token → `Zone.DNS:Edit` scoped to `heinle.cc` |
+| Cloudflare Zone ID | Cloudflare dashboard → select `heinle.cc` → Overview → Zone ID (right sidebar) |
+| SSH key pair | Any existing `~/.ssh/id_ed25519` pair, or generate with `ssh-keygen -t ed25519` |
+
+You also need an email address for the Let's Encrypt ACME account.
+
+### Step 1 — Clone and configure
+
+```bash
+git clone https://github.com/very-emmazing/opendesk.git
+cd opendesk
+
+cp terraform.tfvars.example terraform.tfvars
+$EDITOR terraform.tfvars   # fill in all five required values
+```
+
+The variables file is `.gitignore`d — it will not be committed.
+
+### Step 2 — Initialise Terraform
+
+```bash
+terraform init
+```
+
+This downloads the `kube-hetzner` module (~11 sub-modules) and all providers.
+Expect ~1–2 minutes on first run.
+
+### Step 3 — Phase 1: create the cluster
+
+The `kubernetes`, `helm`, and `kubectl` providers read their connection details
+from the cluster's kubeconfig, which only exists after the cluster is running.
+A two-phase apply is therefore required on a fresh state.
+
+```bash
+terraform apply \
+  -target=module.kube_hetzner \
+  -target=local_sensitive_file.kubeconfig
+```
+
+Type `yes` when prompted. This takes **5–10 minutes**: the module creates the
+Hetzner server, boots MicroOS, installs k3s, deploys the Hetzner cloud
+controller and CSI driver, and writes `kubeconfig.yaml` to this directory.
+
+### Step 4 — Phase 2: install add-ons and DNS
+
+```bash
+terraform apply
+```
+
+Type `yes` when prompted. This takes **3–5 minutes** and:
+
+- Installs haproxy-ingress as a DaemonSet (hostNetwork, ports 80/443).
+- Installs cert-manager with CRDs.
+- Creates the `letsencrypt-dns` ClusterIssuer (Cloudflare DNS-01 solver).
+- Creates Cloudflare A records for `*.od.heinle.cc` and `od.heinle.cc`.
+
+After this phase completes, check what Terraform outputs:
+
+```bash
+terraform output
+```
+
+You should see the node IP, the local kubeconfig path, and the portal URL.
+
+### Step 5 — Verify the platform
+
+```bash
+export KUBECONFIG="$(terraform output -raw kubeconfig_path)"
+
+kubectl get nodes
+# Expected: 1 node, STATUS=Ready
+
+kubectl get storageclass
+# Expected: hcloud-volumes (default)  — local-path should NOT appear
+
+kubectl get ingressclass
+# Expected: haproxy (default)
+
+kubectl -n cert-manager get clusterissuer letsencrypt-dns
+# Expected: READY=True  (may take 30–60 s for ACME registration)
+```
+
+If anything is not Ready, check `kubectl -n <namespace> get pods` for the
+relevant component before proceeding.
+
+### Step 6 — Deploy openDesk
+
+> **This is a manual step — Terraform intentionally stops here.**
+> openDesk ships as a Helmfile orchestrating 35+ Helm charts with its own
+> environment layering; Terraform does not touch it.
+
+```bash
+# Clone the openDesk deployment repository
+# (Verify the canonical URL in the ZenDiS / openCode documentation)
+git clone https://gitlab.opencode.de/bmi/opendesk/deployment/sovereign-workplace.git
+cd sovereign-workplace
+
+# MASTER_PASSWORD is the bootstrap password for all openDesk services.
+# Set it here — it belongs to the Helmfile step, not to Terraform.
+export MASTER_PASSWORD="<choose-a-strong-password>"
+export KUBECONFIG="/path/to/opendesk/kubeconfig.yaml"  # from terraform output
+
+helmfile apply -e dev -n opendesk
+```
+
+The portal will be reachable at **https://portal.od.heinle.cc** once the
+Let's Encrypt wildcard certificate has been issued (usually 1–2 minutes after
+cert-manager starts the DNS-01 challenge).
+
+---
+
+## Teardown — IMPORTANT: read before destroying
+
+**Terraform does not know about Hetzner block volumes created at runtime.**
+
+When openDesk deploys, the Hetzner CSI driver creates block volumes in your
+Hetzner project for each PersistentVolumeClaim. These volumes are _not_ in
+Terraform state (Terraform never created them — the CSI driver did, in
+response to PVCs created by Helm charts). Running `terraform destroy` without
+cleaning them up first will leave orphaned volumes that:
+
+1. Continue to incur hourly charges in your Hetzner account.
+2. Cannot be imported into Terraform retroactively.
+
+### Correct teardown order
+
+```bash
+export KUBECONFIG="$(terraform output -raw kubeconfig_path)"
+
+# 1. Uninstall openDesk and delete its PVCs.
+#    The CSI driver will delete the backing Hetzner volumes as PVCs are removed.
+helmfile destroy -e dev -n opendesk
+kubectl delete namespace opendesk --wait=true
+
+# 2. Confirm in the Hetzner console that no leftover volumes remain.
+#    Console → Cloud → <your project> → Volumes
+#    If any orphaned volumes appear, delete them manually before continuing.
+
+# 3. Destroy all Terraform-managed resources.
+cd /path/to/opendesk  # the Terraform repo root
+terraform destroy
+```
+
+---
+
 ## Prerequisites
 
 | Requirement | Notes |
@@ -41,118 +208,8 @@ The single control-plane node defaults to **CCX43** (16 dedicated x86 vCPU /
 
 **ARM instances (CAX / Ampere) are NOT supported.** openDesk ships x86-only
 container images and Python wheels. Using a CAX node will result in
-crash-looping pods.
-
----
-
-## Quick start
-
-### 1 — Clone and configure
-
-```bash
-git clone https://github.com/very-emmazing/opendesk.git
-cd opendesk
-
-cp terraform.tfvars.example terraform.tfvars
-$EDITOR terraform.tfvars   # fill in tokens, zone ID, email
-```
-
-### 2 — Initialise providers and module
-
-```bash
-terraform init
-```
-
-### 3 — Two-phase apply
-
-Provider configuration for `kubernetes`, `helm`, and `kubectl` is derived from
-the module's kubeconfig output, which only exists after the cluster has been
-created. A single `terraform apply` on a fresh state therefore needs two phases.
-
-**Phase 1 — create the k3s cluster:**
-
-```bash
-terraform apply \
-  -target=module.kube_hetzner \
-  -target=local_sensitive_file.kubeconfig
-```
-
-This takes ~5–10 minutes. The module bootstraps a k3s node via cloud-init,
-installs the Hetzner CSI driver, and writes `kubeconfig.yaml` to this
-directory.
-
-**Phase 2 — install add-ons and DNS:**
-
-```bash
-terraform apply
-```
-
-This installs haproxy-ingress, cert-manager, creates the `letsencrypt-dns`
-ClusterIssuer, and creates the Cloudflare DNS records. Takes ~3–5 minutes.
-
-After both phases, `terraform output` shows the node IP, kubeconfig path, and
-portal URL.
-
----
-
-## Step 4 — Deploy openDesk
-
-> **This is a manual step — Terraform intentionally stops here.**
-
-```bash
-# Export the kubeconfig written by Terraform
-export KUBECONFIG="$(terraform output -raw kubeconfig_path)"
-
-# Verify the platform is ready
-kubectl get nodes          # should show 1 node, Ready
-kubectl get storageclass   # should show hcloud-volumes as (default)
-kubectl get ingressclass   # should show haproxy as (default)
-
-# Clone the openDesk Helmfile repository (example; check ZenDiS docs for URL)
-git clone https://gitlab.opencode.de/bmi/opendesk/deployment/sovereign-workplace.git
-cd sovereign-workplace
-
-# Deploy openDesk
-# MASTER_PASSWORD must be set here — it belongs to the openDesk deployment,
-# not to Terraform. See the openDesk documentation for all required values.
-export MASTER_PASSWORD="<strong-password>"
-helmfile apply -e dev -n opendesk
-```
-
-The portal will be reachable at **https://portal.od.heinle.cc** once the
-Let's Encrypt wildcard certificate has been issued (usually 1–2 minutes after
-cert-manager starts).
-
----
-
-## Teardown — IMPORTANT: read before destroying
-
-**Terraform does not know about Hetzner block volumes created at runtime.**
-
-When openDesk deploys, the Hetzner CSI driver creates block volumes in your
-Hetzner project for each PersistentVolumeClaim. These volumes are _not_ in
-Terraform state (Terraform never created them — the CSI driver did, in
-response to a PVC created by a Helm chart). Running `terraform destroy`
-without cleaning them up first will leave orphaned volumes that:
-
-1. Continue to incur hourly charges in your Hetzner account.
-2. Cannot be imported into Terraform retroactively.
-
-### Correct teardown order
-
-```bash
-# 1. Remove openDesk and its PVCs (waits for volumes to be deleted by CSI)
-export KUBECONFIG="$(terraform output -raw kubeconfig_path)"
-helmfile destroy -e dev -n opendesk
-kubectl delete namespace opendesk --wait=true
-
-# 2. Confirm in the Hetzner console that no leftover volumes remain
-#    Console → Cloud → <project> → Volumes
-#    If orphaned volumes appear, delete them manually before proceeding.
-
-# 3. Destroy all Terraform-managed resources
-terraform destroy
-```
+crash-looping pods. The `node_type` variable has a validation rule that
+rejects any value starting with `cax`.
 
 ---
 
