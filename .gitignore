@@ -1,0 +1,30 @@
+# Terraform state — never commit; contains plaintext secrets and resource IDs
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+
+# Variable files with real secrets — the *.example files ARE committed
+*.tfvars
+!*.tfvars.example
+
+# Kubeconfig written by Terraform after cluster creation
+kubeconfig.yaml
+
+# Terraform working directory — rebuilt by `terraform init`
+.terraform/
+.terraform.lock.hcl
+
+# Crash and debug logs
+crash.log
+crash.*.log
+
+# Override files (local developer customisations, not for VCS)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# macOS / IDE noise
+.DS_Store
+.idea/
+*.swp
