@@ -1,0 +1,41 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# .mise.local.toml.example — template for local credentials and account values
+#
+# Copy this file to .mise.local.toml (which is .gitignored) and fill in real
+# values. mise loads .mise.local.toml automatically whenever you are in this
+# directory (no `source` or shell setup required beyond `mise activate` or
+# `mise exec`). The env vars flow through Terragrunt → OpenTofu automatically.
+#
+#   cp .mise.local.toml.example .mise.local.toml
+#   $EDITOR .mise.local.toml
+#
+# Never commit .mise.local.toml — it contains secrets.
+# ═════════════════════════════════════════════════════════════════════════════
+
+[env]
+# ── Secrets ───────────────────────────────────────────────────────────────────
+
+# Hetzner Cloud API token (Read & Write scope).
+# Console → Security → API Tokens → Create.
+TF_VAR_hcloud_token = "YOUR_HCLOUD_API_TOKEN"
+
+# Cloudflare API token scoped to Zone.DNS:Edit on heinle.cc only.
+TF_VAR_cloudflare_api_token = "YOUR_CLOUDFLARE_API_TOKEN"
+
+# ── Account-specific (non-secret) ─────────────────────────────────────────────
+
+# Cloudflare Zone ID for heinle.cc.
+# Dashboard → heinle.cc → Overview → Zone ID (right sidebar).
+TF_VAR_cloudflare_zone_id = "YOUR_CLOUDFLARE_ZONE_ID_FOR_HEINLE_CC"
+
+# Email for the Let's Encrypt ACME account (receives expiry warnings).
+TF_VAR_letsencrypt_email = "you@example.com"
+
+# ── Optional overrides ────────────────────────────────────────────────────────
+# Most tunables (cluster_name, location, node sizes, lb_type, base_domain) are
+# set centrally in terragrunt.hcl. Uncomment any variable here to override it.
+
+# TF_VAR_agent_count = "4"
+# TF_VAR_location = "fsn1"
+# TF_VAR_ssh_public_key_path = "~/.ssh/id_ed25519.pub"
+# TF_VAR_ssh_private_key_path = "~/.ssh/id_ed25519"

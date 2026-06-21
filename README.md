@@ -83,16 +83,16 @@ README assumes the tools are active (plain `terragrunt`, `tofu`, `kubectl`).
 
 ## Step 1 — Provide credentials
 
-Secrets and account-specific values are supplied as `TF_VAR_*` environment
-variables — **nothing secret is ever written to a committed file**.
+Secrets and account-specific values live in `.mise.local.toml` — **nothing
+secret is ever written to a committed file**. mise loads this file automatically
+whenever you are in the directory (no `source` or shell preamble needed).
 
 ```bash
-cp .env.example .env
-$EDITOR .env                 # fill in the four required values
-set -a; source .env; set +a  # export them into the shell
+cp .mise.local.toml.example .mise.local.toml
+$EDITOR .mise.local.toml     # fill in the four required values
 ```
 
-`.env` is `.gitignored`. Required values:
+`.mise.local.toml` is `.gitignored`. Required entries (in the `[env]` section):
 
 | Variable | Where to get it |
 |---|---|
@@ -102,7 +102,7 @@ set -a; source .env; set +a  # export them into the shell
 | `TF_VAR_letsencrypt_email` | Any email for the ACME account |
 
 You also need an SSH key pair (defaults to `~/.ssh/id_ed25519[.pub]`; override
-with `TF_VAR_ssh_public_key_path` / `TF_VAR_ssh_private_key_path`).
+with `TF_VAR_ssh_public_key_path` / `TF_VAR_ssh_private_key_path` in `.mise.local.toml`).
 
 Non-secret tunables (cluster name, location, node sizes, LB type, base domain)
 live centrally in [`terragrunt.hcl`](./terragrunt.hcl) — edit them there.
@@ -387,8 +387,9 @@ rules that reject any value starting with `cax`.
 ## Configuration reference
 
 Common, non-secret tunables are set in [`terragrunt.hcl`](./terragrunt.hcl);
-secrets and account-specific values are passed as `TF_VAR_*` env vars (see
-[`.env.example`](./.env.example)).
+secrets and account-specific values are set in `.mise.local.toml` (see
+[`.mise.local.toml.example`](./.mise.local.toml.example)), which mise injects
+as environment variables automatically.
 
 | Setting | Source | Default | Description |
 |---|---|---|---|

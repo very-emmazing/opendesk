@@ -26,6 +26,6 @@ helm     = "3.16"
 helmfile = "0.168"
 
 [env]
-# Account-specific values and secrets are NOT stored here. Provide them as
-# TF_VAR_* environment variables (see .env.example); they flow through
-# Terragrunt → OpenTofu automatically.
+# Secrets and account-specific values are NOT stored here — they live in
+# .mise.local.toml (gitignored). Copy .mise.local.toml.example there and fill
+# in real values; mise injects them as environment variables automatically.
