@@ -1,8 +1,9 @@
 # ═════════════════════════════════════════════════════════════════════════════
 # Cloudflare DNS records for openDesk
 #
-# Both records point at the Hetzner Load Balancer's public IP (lb.tf).
-# The LB distributes HTTPS traffic to haproxy-ingress pods across agent nodes.
+# Both records point at the Hetzner Load Balancer's public IP (var.lb_ipv4,
+# supplied by the cluster module). The LB distributes HTTPS traffic to
+# haproxy-ingress pods across agent nodes.
 #
 # proxied = false is MANDATORY for two reasons:
 #   1. Let's Encrypt DNS-01 ACME challenge: cert-manager reads TXT records
@@ -15,10 +16,10 @@
 # ═════════════════════════════════════════════════════════════════════════════
 
 locals {
-  # Use the Hetzner Load Balancer's public IP as the DNS target.
-  # This gives a stable address independent of individual node IPs or
-  # rescheduling events.
-  ingress_ip = hcloud_load_balancer.ingress.ipv4
+  # The Hetzner Load Balancer's public IP, created in the cluster module and
+  # passed in via the Terragrunt dependency. A stable address independent of
+  # individual node IPs or rescheduling events.
+  ingress_ip = var.lb_ipv4
 
   # Derive the subdomain label relative to the Cloudflare zone.
   # Example: base_domain="od.heinle.cc", zone="heinle.cc" → subdomain="od"

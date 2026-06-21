@@ -10,7 +10,7 @@ module "kube_hetzner" {
   hcloud_token = var.hcloud_token
 
   # The module reads the raw key content (not a path) — file() resolves at plan
-  # time, so the keys must exist locally when you run terraform apply.
+  # time, so the keys must exist locally when you run tofu apply.
   ssh_public_key  = file(var.ssh_public_key_path)
   ssh_private_key = file(var.ssh_private_key_path)
 
@@ -72,9 +72,9 @@ module "kube_hetzner" {
 
   # ── Ingress controller ────────────────────────────────────────────────────
   # "none" = do NOT install the module's built-in ingress controller.
-  # We install haproxy-ingress ourselves (haproxy.tf) so we can control the
-  # exact tune.bufsize and tune.http.maxhdr values that openDesk requires.
-  # The module's built-in haproxy option doesn't expose these parameters.
+  # The platform module installs haproxy-ingress so we can control the exact
+  # tune.bufsize and tune.http.maxhdr values that openDesk requires. The
+  # module's built-in haproxy option doesn't expose these parameters.
   ingress_controller = "none"
 
   # Location for any Hetzner Load Balancer the module might create (e.g. the
@@ -92,11 +92,12 @@ module "kube_hetzner" {
 }
 
 # ── Kubeconfig file ───────────────────────────────────────────────────────────
-# Write the cluster kubeconfig to disk so that kubectl, helmfile, and other
-# local tools can use it after `terraform apply` completes.
-# File mode 0600 prevents other users on the machine from reading it.
+# Write the cluster kubeconfig to a stable path (var.kubeconfig_path, set by
+# Terragrunt to a location outside .terragrunt-cache) so that kubectl, helmfile,
+# and other local tools can use it after apply. Mode 0600 prevents other users
+# on the machine from reading it.
 resource "local_sensitive_file" "kubeconfig" {
   content         = module.kube_hetzner.kubeconfig
-  filename        = "${path.module}/kubeconfig.yaml"
+  filename        = var.kubeconfig_path
   file_permission = "0600"
 }

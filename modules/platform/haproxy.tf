@@ -21,8 +21,8 @@
 # Architecture — Deployment + Hetzner Load Balancer:
 #   haproxy-ingress runs as a Deployment (2 replicas) on the agent nodes.
 #   A Service of type LoadBalancer is created; the Hetzner cloud controller
-#   manager (CCM) wires it to the pre-provisioned LB (lb.tf) and manages
-#   LB targets and port forwarding automatically. Traffic path:
+#   manager (CCM) wires it to the pre-provisioned LB (cluster module) and
+#   manages LB targets and port forwarding automatically. Traffic path:
 #
 #     Internet → Hetzner LB public IP → haproxy pod (via private network)
 #       → Kubernetes Service ClusterIP → application pod
@@ -56,9 +56,10 @@ resource "helm_release" "haproxy_ingress" {
         service:
           type: LoadBalancer
           annotations:
-            # Use the pre-provisioned LB from lb.tf instead of letting CCM
-            # create a new one. This gives a stable IP before any pods exist.
-            load-balancer.hetzner.cloud/id: "${hcloud_load_balancer.ingress.id}"
+            # Use the pre-provisioned LB from the cluster module instead of
+            # letting CCM create a new one. This gives a stable IP that the
+            # Cloudflare A records already point at.
+            load-balancer.hetzner.cloud/id: "${var.lb_id}"
             # Route LB→node traffic via the cluster private network.
             # Prevents NodePort traffic from traversing the public NIC and
             # avoids the need for port 80/443 rules in the node firewall.
@@ -72,14 +73,5 @@ resource "helm_release" "haproxy_ingress" {
             tune.bufsize 65536
             tune.http.maxhdr 256
     YAML
-  ]
-
-  # Cluster must exist before any Helm release can be installed.
-  # LB must be attached to the cluster network before CCM can populate
-  # LB targets — explicit dependency since no attribute of
-  # hcloud_load_balancer_network.ingress is referenced above.
-  depends_on = [
-    module.kube_hetzner,
-    hcloud_load_balancer_network.ingress,
   ]
 }

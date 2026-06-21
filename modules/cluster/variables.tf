@@ -1,29 +1,7 @@
 variable "hcloud_token" {
-  description = "Hetzner Cloud API token (Read & Write scope). Create at https://console.hetzner.cloud → Security → API Tokens. Pass via TF_VAR_hcloud_token or terraform.tfvars."
+  description = "Hetzner Cloud API token (Read & Write scope). Create at https://console.hetzner.cloud → Security → API Tokens. Pass via TF_VAR_hcloud_token (never commit it)."
   type        = string
   sensitive   = true
-}
-
-variable "cloudflare_api_token" {
-  description = "Cloudflare API token with Zone.DNS:Edit permission scoped to heinle.cc. Needed both for cert-manager DNS-01 ACME solver and for Terraform to create DNS records. Pass via TF_VAR_cloudflare_api_token."
-  type        = string
-  sensitive   = true
-}
-
-variable "cloudflare_zone_id" {
-  description = "Cloudflare Zone ID for heinle.cc. Find it on the Cloudflare dashboard: Overview → API section (right sidebar) → Zone ID."
-  type        = string
-}
-
-variable "cloudflare_zone_name" {
-  description = "Root domain name of the Cloudflare zone. Must be the parent of base_domain."
-  type        = string
-  default     = "heinle.cc"
-}
-
-variable "letsencrypt_email" {
-  description = "Email address for Let's Encrypt ACME account. Receives certificate expiry warnings."
-  type        = string
 }
 
 variable "ssh_public_key_path" {
@@ -33,7 +11,7 @@ variable "ssh_public_key_path" {
 }
 
 variable "ssh_private_key_path" {
-  description = "Path to the SSH private key used by the kube-hetzner module to bootstrap k3s on the nodes via cloud-init / SSH. The key is never stored in Terraform state."
+  description = "Path to the SSH private key used by the kube-hetzner module to bootstrap k3s on the nodes via cloud-init / SSH. The key is never stored in state."
   type        = string
   default     = "~/.ssh/id_ed25519"
 }
@@ -53,8 +31,7 @@ variable "control_plane_type" {
     binaries and will crash-loop on ARM nodes.
 
     The control-plane node only runs k3s system components (API server,
-    scheduler, controller-manager, etcd). All openDesk workloads run on the
-    agent nodes. cx22 (2 vCPU / 4 GB) is sufficient.
+    scheduler, controller-manager, etcd). cx22 (2 vCPU / 4 GB) is sufficient.
   EOT
   type        = string
   default     = "cx22"
@@ -104,8 +81,8 @@ variable "location" {
   default     = "nbg1"
 }
 
-variable "base_domain" {
-  description = "Base domain for the openDesk deployment. Terraform creates A records for '{base_domain}' and '*.{base_domain}'. Must be a subdomain of cloudflare_zone_name."
+variable "kubeconfig_path" {
+  description = "Absolute path where the cluster kubeconfig is written. Set by Terragrunt to a stable location outside the .terragrunt-cache directory so kubectl/helmfile can find it after apply."
   type        = string
-  default     = "od.heinle.cc"
+  default     = "kubeconfig.yaml"
 }
