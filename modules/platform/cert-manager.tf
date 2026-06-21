@@ -26,10 +26,6 @@ resource "helm_release" "cert_manager" {
       value = "true"
     }
   ]
-
-  # cert-manager must be installed before we create the Kubernetes Secret and
-  # ClusterIssuer resources below (the CRDs must exist first).
-  depends_on = [module.kube_hetzner]
 }
 
 # ── Cloudflare API token secret ───────────────────────────────────────────────

@@ -1,0 +1,31 @@
+# ═════════════════════════════════════════════════════════════════════════════
+# mise — pinned tool versions for this repository
+# https://mise.jdx.dev
+#
+# `mise install` provisions every tool below at the pinned version. This is the
+# single source of truth for the toolchain: contributors and CI get identical
+# binaries without manual installs.
+#
+# Versions are pinned at the minor level; mise resolves the latest matching
+# patch. Bump them deliberately when you want newer releases.
+# ═════════════════════════════════════════════════════════════════════════════
+
+[tools]
+# OpenTofu is the IaC engine (NOT Terraform). Terragrunt is configured to drive
+# the `tofu` binary via terraform_binary = "tofu" in terragrunt.hcl.
+opentofu = "1.8"
+
+# Terragrunt orchestrates the OpenTofu units under live/ and wires the
+# cluster → platform dependency. Pinned to a 0.6x line whose CLI matches the
+# documented `terragrunt run-all apply` commands.
+terragrunt = "0.67"
+
+# Cluster tooling for the post-apply verification and the openDesk helmfile step.
+kubectl  = "1.31"
+helm     = "3.16"
+helmfile = "0.168"
+
+[env]
+# Account-specific values and secrets are NOT stored here. Provide them as
+# TF_VAR_* environment variables (see .env.example); they flow through
+# Terragrunt → OpenTofu automatically.
