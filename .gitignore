@@ -16,13 +16,14 @@ backend.tf
 .terraform/
 .terraform.lock.hcl
 
-# ── Secrets / env ─────────────────────────────────────────────────────────────
-# Real secrets live in .env (TF_VAR_* exports); the .example file IS committed.
-.env
-!.env.example
-# Legacy *.tfvars (kept ignored in case any are created locally).
+# ── Secrets / mise local config ───────────────────────────────────────────────
+# Real secrets live in .mise.local.toml (TF_VAR_* entries); the .example IS committed.
+.mise.local.toml
+!.mise.local.toml.example
+# Legacy *.tfvars and .env (kept ignored in case any are created locally).
 *.tfvars
 !*.tfvars.example
+.env
 
 # ── Kubeconfig written after cluster creation ─────────────────────────────────
 kubeconfig.yaml
