@@ -15,11 +15,15 @@
 # the `tofu` binary via terraform_binary = "tofu" in terragrunt.hcl.
 # NOTE: mise's aqua backend requires exact patch versions — fuzzy minor pins
 # (e.g. "1.8") do not resolve. Bump these deliberately when upgrading.
-opentofu = "1.8.10"
+opentofu = "1.10.10"
 
 # Terragrunt orchestrates the OpenTofu units under live/ and wires the
 # cluster → platform dependency.
 terragrunt = "0.67.0"
+
+# Packer builds the MicroOS snapshot in Hetzner (one-time prerequisite for the
+# cluster module). Run: packer init packer/ && packer build -only=hcloud.microos-x86-snapshot packer/
+packer = "1.15.4"
 
 # Cluster tooling for the post-apply verification and the openDesk helmfile step.
 kubectl  = "1.31.14"
