@@ -10,6 +10,7 @@
 output "kube_host" {
   description = "Kubernetes API server URL."
   value       = module.kube_hetzner.kubeconfig_data.host
+  sensitive   = true
 }
 
 output "kube_cluster_ca_certificate" {

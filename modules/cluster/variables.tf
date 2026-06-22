@@ -34,7 +34,7 @@ variable "control_plane_type" {
     scheduler, controller-manager, etcd). cx22 (2 vCPU / 4 GB) is sufficient.
   EOT
   type        = string
-  default     = "cx22"
+  default     = "cx23"
 
   validation {
     condition     = !startswith(lower(var.control_plane_type), "cax")

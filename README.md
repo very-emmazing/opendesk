@@ -364,7 +364,7 @@ The cluster uses a split control-plane / worker topology:
 
 | Role | Default type | vCPU | RAM | Count |
 |---|---|---|---|---|
-| Control-plane | `cx22` | 2 | 4 GB | 1 |
+| Control-plane | `cx23` | 2 | 4 GB | 1 |
 | Agent (worker) | `cx33` | 8 | 16 GB | 3 (default) |
 | **Total worker capacity** | | **24** | **48 GB** | |
 
@@ -400,7 +400,7 @@ as environment variables automatically.
 | `ssh_public_key_path` | env (optional) | `~/.ssh/id_ed25519.pub` | SSH public key for node access |
 | `ssh_private_key_path` | env (optional) | `~/.ssh/id_ed25519` | SSH private key for cloud-init bootstrap |
 | `cluster_name` | terragrunt.hcl | `opendesk-eval` | Prefix for Hetzner resource names |
-| `control_plane_type` | terragrunt.hcl | `cx22` | Control-plane server type (x86 only) |
+| `control_plane_type` | terragrunt.hcl | `cx23` | Control-plane server type (x86 only) |
 | `agent_type` | terragrunt.hcl | `cx33` | Worker server type (x86 only, max cx33) |
 | `agent_count` | terragrunt.hcl | `3` | Number of worker nodes |
 | `lb_type` | terragrunt.hcl | `lb11` | Hetzner Load Balancer type for ingress |
