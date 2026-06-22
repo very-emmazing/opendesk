@@ -1,32 +1,16 @@
 # ═════════════════════════════════════════════════════════════════════════════
-# cert-manager  v1.20.2
-# Chart: https://charts.jetstack.io
+# cert-manager configuration
+#
+# cert-manager itself is installed by kube-hetzner's kustomization step via
+# a k3s HelmChart CRD (version: "*", latest stable). This module only
+# configures the DNS-01 ClusterIssuer and the Cloudflare API token Secret
+# that cert-manager needs to complete ACME challenges.
 #
 # cert-manager manages TLS certificates for all openDesk sub-services.
 # openDesk uses a single wildcard certificate (*.od.heinle.cc) issued by
 # Let's Encrypt. Wildcards REQUIRE DNS-01 challenge; HTTP-01 cannot issue
 # wildcard certificates. We use Cloudflare as the DNS-01 provider.
 # ═════════════════════════════════════════════════════════════════════════════
-
-resource "helm_release" "cert_manager" {
-  name             = "cert-manager"
-  repository       = "https://charts.jetstack.io"
-  chart            = "cert-manager"
-  version          = "v1.20.2"
-  namespace        = "cert-manager"
-  create_namespace = true
-
-  wait    = true
-  timeout = 300
-
-  # Helm provider v3 changed nested blocks (set/set_sensitive) to list arguments.
-  set = [
-    {
-      name  = "crds.enabled"
-      value = "true"
-    }
-  ]
-}
 
 # ── Cloudflare API token secret ───────────────────────────────────────────────
 # cert-manager reads this Secret when it needs to complete a DNS-01 challenge:
@@ -44,8 +28,6 @@ resource "kubernetes_secret_v1" "cloudflare_api_token" {
   data = {
     api-token = var.cloudflare_api_token
   }
-
-  depends_on = [helm_release.cert_manager]
 }
 
 # ── ClusterIssuer: letsencrypt-dns ────────────────────────────────────────────
@@ -84,7 +66,6 @@ resource "kubectl_manifest" "letsencrypt_dns_issuer" {
   YAML
 
   depends_on = [
-    helm_release.cert_manager,
     kubernetes_secret_v1.cloudflare_api_token,
   ]
 }
