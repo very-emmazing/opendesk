@@ -48,10 +48,16 @@ inputs = {
   cloudflare_zone_name = "heinle.cc"
 
   # Node sizing — x86 only, never CAX/ARM. Max per-node type is cx33.
-  control_plane_type = "cx22" # 2 vCPU / 4 GB  — k3s system only
+  control_plane_type = "cx23" # 2 vCPU / 4 GB  — k3s system only
   agent_type         = "cx33" # 8 vCPU / 16 GB — openDesk workloads
   agent_count        = 3      # 3 × cx33 = 24 vCPU / 48 GB total
 
   # Hetzner Load Balancer for ingress.
   lb_type = "lb11" # 5 Gbit/s, up to 25 targets
+
+  # SSH key paths — override via TF_VAR_ssh_public_key_path in .mise.local.toml.
+  # get_env() resolves at Terragrunt evaluation time (not tofu), so the value is
+  # always concrete regardless of whether TF_VAR_* vars are pre-loaded in the shell.
+  ssh_public_key_path  = get_env("TF_VAR_ssh_public_key_path", "~/.ssh/id_ed25519.pub")
+  ssh_private_key_path = get_env("TF_VAR_ssh_private_key_path", "~/.ssh/id_ed25519")
 }

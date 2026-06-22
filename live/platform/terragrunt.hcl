@@ -27,15 +27,46 @@ dependency "cluster" {
   # apply, where the actual cluster outputs are read instead.
   mock_outputs_allowed_terraform_commands = ["validate", "plan", "init", "fmt"]
   mock_outputs = {
-    kube_host                   = "https://127.0.0.1:6443"
-    kube_cluster_ca_certificate = "bW9jaw==" # base64("mock")
-    kube_client_certificate     = "bW9jaw=="
-    kube_client_key             = "bW9jaw=="
-    network_id                  = "0"
-    lb_id                       = "0"
-    lb_ipv4                     = "203.0.113.1" # TEST-NET-3 placeholder
-    cluster_name                = "opendesk-eval"
-    kubeconfig_path             = "/tmp/kubeconfig.yaml"
+    kube_host = "https://127.0.0.1:6443"
+    # kube_hetzner returns base64decode(kubeconfig cert data), so mock values
+    # must be raw PEM strings — the kubernetes/helm/kubectl providers validate
+    # PEM format at provider init even during plan.
+    kube_cluster_ca_certificate = <<-PEM
+      -----BEGIN CERTIFICATE-----
+      MIIBdDCCARmgAwIBAgIUYPPIn0nsMNw1pE/eNf12sw2WwXMwCgYIKoZIzj0EAwIw
+      DzENMAsGA1UEAwwEbW9jazAeFw0yNjA2MjExOTQ3MDZaFw0zNjA2MTgxOTQ3MDZa
+      MA8xDTALBgNVBAMMBG1vY2swWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARFobFp
+      D4PfA3v7ecXgRaw9Au/eFb5RBYvJ6DgGELOZrG1PbH0ztObrMSplSXyrXczK/DA1
+      UIHrdNK+yCY0tVjbo1MwUTAdBgNVHQ4EFgQUlt2K1thUe9WxxQm0vgxREzXuVxUw
+      HwYDVR0jBBgwFoAUlt2K1thUe9WxxQm0vgxREzXuVxUwDwYDVR0TAQH/BAUwAwEB
+      /zAKBggqhkjOPQQDAgNJADBGAiEAu8SDGncgJ8dM30TOZopRjBZoQfftlKBxE3Tv
+      +yongmwCIQCejt9UeYhk4/CjSXdQX/KUcuSo7WpdZAb/u9n8tOKQEA==
+      -----END CERTIFICATE-----
+    PEM
+    kube_client_certificate = <<-PEM
+      -----BEGIN CERTIFICATE-----
+      MIIBdDCCARmgAwIBAgIUYPPIn0nsMNw1pE/eNf12sw2WwXMwCgYIKoZIzj0EAwIw
+      DzENMAsGA1UEAwwEbW9jazAeFw0yNjA2MjExOTQ3MDZaFw0zNjA2MTgxOTQ3MDZa
+      MA8xDTALBgNVBAMMBG1vY2swWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARFobFp
+      D4PfA3v7ecXgRaw9Au/eFb5RBYvJ6DgGELOZrG1PbH0ztObrMSplSXyrXczK/DA1
+      UIHrdNK+yCY0tVjbo1MwUTAdBgNVHQ4EFgQUlt2K1thUe9WxxQm0vgxREzXuVxUw
+      HwYDVR0jBBgwFoAUlt2K1thUe9WxxQm0vgxREzXuVxUwDwYDVR0TAQH/BAUwAwEB
+      /zAKBggqhkjOPQQDAgNJADBGAiEAu8SDGncgJ8dM30TOZopRjBZoQfftlKBxE3Tv
+      +yongmwCIQCejt9UeYhk4/CjSXdQX/KUcuSo7WpdZAb/u9n8tOKQEA==
+      -----END CERTIFICATE-----
+    PEM
+    kube_client_key = <<-PEM
+      -----BEGIN PRIVATE KEY-----
+      MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQga1HP3LDAh8RYvRNh
+      8NdpopEWEqIOIVYh9AnjnLfviSKhRANCAARFobFpD4PfA3v7ecXgRaw9Au/eFb5R
+      BYvJ6DgGELOZrG1PbH0ztObrMSplSXyrXczK/DA1UIHrdNK+yCY0tVjb
+      -----END PRIVATE KEY-----
+    PEM
+    network_id      = "0"
+    lb_id           = "0"
+    lb_ipv4         = "203.0.113.1" # TEST-NET-3 placeholder
+    cluster_name    = "opendesk-eval"
+    kubeconfig_path = "/tmp/kubeconfig.yaml"
   }
 }
 

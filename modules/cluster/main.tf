@@ -7,12 +7,16 @@ module "kube_hetzner" {
   source  = "kube-hetzner/kube-hetzner/hcloud"
   version = "2.20.0"
 
+  providers = {
+    hcloud = hcloud
+  }
+
   hcloud_token = var.hcloud_token
 
   # The module reads the raw key content (not a path) — file() resolves at plan
   # time, so the keys must exist locally when you run tofu apply.
-  ssh_public_key  = file(var.ssh_public_key_path)
-  ssh_private_key = file(var.ssh_private_key_path)
+  ssh_public_key  = file(pathexpand(var.ssh_public_key_path))
+  ssh_private_key = file(pathexpand(var.ssh_private_key_path))
 
   cluster_name = var.cluster_name
 
@@ -88,7 +92,7 @@ module "kube_hetzner" {
   # Update these when you want to pick up upstream fixes.
   hetzner_ccm_version = "v1.33.0" # hcloud cloud controller manager
   hetzner_csi_version = "v2.21.2" # hcloud CSI block-storage driver
-  kured_version       = "v1.21.0" # Kubernetes reboot daemon
+  kured_version       = "v1.22.1" # Kubernetes reboot daemon
 }
 
 # ── Kubeconfig file ───────────────────────────────────────────────────────────

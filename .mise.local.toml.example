@@ -17,7 +17,10 @@
 
 # Hetzner Cloud API token (Read & Write scope).
 # Console → Security → API Tokens → Create.
-TF_VAR_hcloud_token = "YOUR_HCLOUD_API_TOKEN"
+# HCLOUD_TOKEN is read by packer; TF_VAR_hcloud_token by OpenTofu/Terragrunt.
+# Both must hold the same value.
+HCLOUD_TOKEN           = "YOUR_HCLOUD_API_TOKEN"
+TF_VAR_hcloud_token    = "YOUR_HCLOUD_API_TOKEN"
 
 # Cloudflare API token scoped to Zone.DNS:Edit on heinle.cc only.
 TF_VAR_cloudflare_api_token = "YOUR_CLOUDFLARE_API_TOKEN"
